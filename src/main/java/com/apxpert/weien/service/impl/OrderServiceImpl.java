@@ -128,6 +128,16 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
+    public OrderDTO getOrderById(Integer orderId) {
+        OrderMaster orderMaster = orderMasterDao.findById(orderId).orElseThrow();
+        List<OrderDetail> orderDetails = orderDetailDao.findByOrderId(orderId);
+        OrderDTO orderDTO = convertToOrderDTO(orderMaster, orderDetails);
+        Customer customer = customerDao.findById(orderMaster.getCustomerId()).orElseThrow();
+        orderDTO.setCustomer(customer);
+        return orderDTO;
+    }
+
+    @Override
     public Boolean validOrderRequest(OrderDTO orderDTO) {
         if (orderDTO == null || orderDTO.getProducts() == null) {
             throw new IllegalArgumentException("未傳入任何商品");

@@ -14,5 +14,8 @@ public interface OrderService {
     @Transactional(readOnly = true)
     Page<OrderDTO> getOrderList(Integer page, Integer size);
 
+    @Transactional(readOnly = true)
+    OrderDTO getOrderById(Integer orderId);
+
     Boolean validOrderRequest (OrderDTO orderDTO);
 }

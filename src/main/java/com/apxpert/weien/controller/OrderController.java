@@ -46,4 +46,10 @@ public class OrderController {
         Page<OrderDTO> orderList = orderService.getOrderList(page, size);
         return Result.ok(orderList.getContent(), orderList.getTotalElements());
     }
+
+    @GetMapping("orders/{orderId}")
+    public Result getOrder(@PathVariable Integer orderId) {
+        OrderDTO order = orderService.getOrderById(orderId);
+        return Result.ok(order);
+    }
 }
