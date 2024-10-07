@@ -12,28 +12,9 @@
 <body>
 
 <div class="container mt-5">
-    <h1 class="text-center">選擇您的水果</h1>
-    <div id="product-list" class="row mt-4"></div>
+    <jsp:include page="header.jsp"/>
 
-    <div class="mt-5 text-center">
-        <div class="d-flex align-items-center justify-content-center mb-3">
-            <label for="customer-name" class="h5 mr-2">訂購者：</label>
-            <input type="text" id="customer-name" class="form-control" style="width: 200px;" placeholder="請輸入姓名" required>
-        </div>
-        <div class="d-flex gap-2 justify-content-center">
-            <button class="btn btn-secondary " id="clear-button">清空</button>
-            <button class="btn btn-primary" id="order-button">送出</button>
-        </div>
-    </div>
-
-    <div id="order-summary" class="mt-3"></div>
-
-
-    <!-- 新增訂單列表 -->
-    <div class="mt-5">
-        <h2 class="text-center">訂單列表</h2>
-        <ul id="order-list" class="list-group"></ul>
-    </div>
+    <jsp:include page="${content}"/>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

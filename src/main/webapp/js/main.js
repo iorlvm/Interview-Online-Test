@@ -1,11 +1,67 @@
 document.addEventListener("DOMContentLoaded", async function () {
-    const res = await getProductListAPI(0, 20)
+
+    const productList = document.getElementById("product-list");
+    if (productList) {
+        // 渲染商品列表
+        await renderProductList(productList);
+    }
+
+    const orderList = document.getElementById("order-list");
+    if (orderList) {
+        // 渲染訂單列表
+        await renderOrderList(orderList);
+    }
+
+    const apiTest = document.getElementById("api-test-result");
+    if (apiTest) {
+        // 測驗Api渲染
+        await renderApiTest(apiTest);
+    }
+});
+
+async function renderApiTest (apiTest){
+    const res = await testAPI();
+    console.log(res);
+
+    if (res.code === 200) {
+        let tableHTML = `
+            <table class="table table-striped table-bordered mt-4">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>姓名</th>
+                        <th>Email</th>
+                        <th>性別</th>
+                        <th>狀態</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+
+        const users = res.data;
+        users.forEach(user => {
+            tableHTML += `
+                <tr>
+                    <td>${user.id}</td>
+                    <td>${user.name}</td>
+                    <td>${user.email}</td>
+                    <td>${user.gender}</td>
+                    <td>${user.status}</td>
+                </tr>`;
+        });
+        tableHTML += `
+                </tbody>
+            </table>`;
+
+        apiTest.innerHTML = tableHTML;
+    }
+}
+
+async function renderProductList (productList) {
+    const res = await getProductListAPI(0, 20);
 
     let products;
     if (res.success) {
         products = res.data;
-
-        const productList = document.getElementById("product-list");
 
         // 水果卡片
         products.forEach((product, index) => {
@@ -27,10 +83,6 @@ document.addEventListener("DOMContentLoaded", async function () {
         });
     }
 
-    // 渲染訂單列表
-    await renderOrderList();
-
-
     // 提交列表
     document.getElementById("order-button").addEventListener("click", async () => {
         let orderProducts = [];
@@ -45,7 +97,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         });
         const customerName = document.getElementById("customer-name").value;
 
-        const res = await createOrderAPI({customerName ,products: orderProducts});
+        const res = await createOrderAPI({customerName, products: orderProducts});
 
         console.log(res);
         if (res.success) {
@@ -80,15 +132,13 @@ document.addEventListener("DOMContentLoaded", async function () {
         });
         document.getElementById("order-summary").innerHTML = "";
     });
-});
+}
 
 // 渲染訂單列表的函數
-async function renderOrderList() {
+async function renderOrderList(orderList) {
     try {
         const ordersRes = await getOrdersAPI();  // 獲取訂單 API
-        const orderList = document.getElementById("order-list");
         orderList.innerHTML = ""; // 清空目前的訂單列表
-        console.log(ordersRes); // 打印 API 返回的結果
 
         if (ordersRes.success && ordersRes.data.length > 0) {
             ordersRes.data.forEach(order => {
