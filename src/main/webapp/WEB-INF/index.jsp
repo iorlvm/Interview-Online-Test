@@ -27,6 +27,13 @@
     </div>
 
     <div id="order-summary" class="mt-3"></div>
+
+
+    <!-- 新增訂單列表 -->
+    <div class="mt-5">
+        <h2 class="text-center">訂單列表</h2>
+        <ul id="order-list" class="list-group"></ul>
+    </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

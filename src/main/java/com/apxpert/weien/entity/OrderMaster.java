@@ -24,7 +24,7 @@ public class OrderMaster {
     @Column(name = "success")
     private Boolean success; // 交易成功 (y/n)
 
-    @Column(name = "create_date", insertable = false)
+    @Column(name = "create_date", updatable = false)
     @Temporal(TemporalType.TIMESTAMP)
     private Date createDate; // 成交時間
 
