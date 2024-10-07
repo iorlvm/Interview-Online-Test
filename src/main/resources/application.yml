@@ -1,0 +1,50 @@
+spring:
+  application:
+    name: interview-test
+
+  config:
+    import: classpath:db.properties
+
+  datasource:
+    url: ${db.url}
+    username: ${db.username}
+    password: ${db.password}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      idle-timeout: 30000
+      connection-timeout: 20000
+      max-lifetime: 1800000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        show_sql: true
+        format_sql: true
+        dialect: org.hibernate.dialect.MySQLDialect
+
+  jackson:
+    default-property-inclusion: non_null
+
+  mvc:
+    view:
+      prefix: /WEB-INF/
+      suffix: .jsp
+
+
+logging:
+  level:
+    root: INFO
+    idv.tia201.g1: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+
+server:
+  servlet:
+    encoding:
+      force: true
+      enabled: true
+      charset: UTF-8
