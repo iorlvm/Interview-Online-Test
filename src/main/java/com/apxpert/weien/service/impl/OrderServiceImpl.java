@@ -127,6 +127,20 @@ public class OrderServiceImpl implements OrderService {
         return new PageImpl<>(orderDTOS, pageRequest, all.getTotalElements());
     }
 
+    @Override
+    public Boolean validOrderRequest(OrderDTO orderDTO) {
+        if (orderDTO == null || orderDTO.getProducts() == null) {
+            throw new IllegalArgumentException("未傳入任何商品");
+        }
+
+        for (OrderDTO.Product product : orderDTO.getProducts()) {
+            if (product.getCount() > 10) {
+                throw new IllegalArgumentException("每種商品一次最多訂購10個");
+            }
+        }
+        return true;
+    }
+
     private OrderDTO convertToOrderDTO(OrderMaster orderMaster, List<OrderDetail> orderDetails) {
         OrderDTO res = new OrderDTO();
         BeanUtils.copyProperties(orderMaster, res);

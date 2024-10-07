@@ -10,8 +10,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 @RestController
 @RequestMapping("api")
 public class OrderController {
@@ -23,6 +21,9 @@ public class OrderController {
 
     @PostMapping("orders")
     public Result createOrder(@RequestBody OrderDTO orderDTO) {
+        // 驗證請求是否合法
+        orderService.validOrderRequest(orderDTO);
+
         Customer loginUser = UserHolder.getUser();
         Customer customer = orderDTO.getCustomer();
         if (loginUser == null) {
