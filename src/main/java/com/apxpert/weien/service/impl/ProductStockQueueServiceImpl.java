@@ -97,7 +97,7 @@ public class ProductStockQueueServiceImpl implements ProductStockQueueService {
         // 構建要發送到消息隊列的數據
         Map<String, Object> message = Map.of(
                 "productId", productId.toString(),
-                "newStock", stock
+                "newStock", stock.toString()
         );
 
         // 發送消息到MQ中
@@ -108,13 +108,13 @@ public class ProductStockQueueServiceImpl implements ProductStockQueueService {
         Map<Object, Object> value = record.getValue();
 
         String productIdStr = (String) value.get("productId");
-        Integer newStock = (Integer) value.get("newStock");
+        String newStock = (String) value.get("newStock");
 
         if (productIdStr != null && newStock != null) {
             // 更新商品庫存
             Product product = productDao.findById(Integer.parseInt(productIdStr)).orElse(null);
             if (product != null) {
-                product.setStock(newStock);
+                product.setStock(Integer.parseInt(newStock));
                 productDao.save(product); // 更新資料庫中的庫存
             }
         }

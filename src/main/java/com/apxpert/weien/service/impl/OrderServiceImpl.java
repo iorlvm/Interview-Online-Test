@@ -10,18 +10,27 @@ import com.apxpert.weien.entity.OrderDetail;
 import com.apxpert.weien.entity.OrderMaster;
 import com.apxpert.weien.entity.Product;
 import com.apxpert.weien.service.OrderService;
+import com.apxpert.weien.service.ProductStockQueueService;
 import com.apxpert.weien.utils.UserHolder;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import static com.apxpert.weien.utils.Constant.PRODUCT_STOCK;
 
 @Service
 public class OrderServiceImpl implements OrderService {
@@ -33,6 +42,21 @@ public class OrderServiceImpl implements OrderService {
     private OrderMasterDao orderMasterDao;
     @Autowired
     private OrderDetailDao orderDetailDao;
+    @Autowired
+    private ProductStockQueueService productStockQueueService;
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    private static final DefaultRedisScript<Long> CHECK_AND_DECREASE_STOCK_SCRIPT;
+
+    static {
+        CHECK_AND_DECREASE_STOCK_SCRIPT = new DefaultRedisScript<>();
+        CHECK_AND_DECREASE_STOCK_SCRIPT.setLocation(new ClassPathResource("lua/checkAndDecreaseStock.lua"));
+        CHECK_AND_DECREASE_STOCK_SCRIPT.setResultType(Long.class);
+    }
+
 
     @Override
     public OrderDTO createOrder(OrderDTO orderDTO) {
@@ -42,25 +66,38 @@ public class OrderServiceImpl implements OrderService {
             throw new IllegalArgumentException("參數錯誤: 無傳遞任何商品");
         }
 
+        // 將請求參數合併
         Map<Integer, Integer> productMap = convertListToMap(products);
-        Map<Integer, Integer> productStocksByIds = productDao.findProductStocksByIds(productMap.keySet());
 
-        // 檢查庫存
-        boolean success = true;
-        for (Map.Entry<Integer, Integer> entry : productMap.entrySet()) {
-            Integer productId = entry.getKey();
-            Integer requestedCount = entry.getValue();
+        // 準備 Lua 腳本的參數
+        List<Integer> productIds = new ArrayList<>();
+        List<Integer> requestedCounts = new ArrayList<>();
 
-            // 獲取可用庫存
-            Integer availableStock = productStocksByIds.get(productId);
-
-            // 檢查庫存是否足夠
-            if (availableStock == null || availableStock < requestedCount) {
-                success = false;
-                break;
-            }
+        for (OrderDTO.Product product : products) {
+            // 使用list, 確保JSON id與數量的順序一致
+            productIds.add(product.getProductId());
+            requestedCounts.add(product.getCount());
         }
 
+        // 轉成JSON格式
+        String productIdsJson = null;       // 將商品 ID 轉為 JSON 字符串
+        String requestedCountsJson = null;  // 將請求數量轉為 JSON 字符串
+        try {
+            productIdsJson = objectMapper.writeValueAsString(productIds);
+            requestedCountsJson = objectMapper.writeValueAsString(requestedCounts);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
+
+        // 調用 Lua 腳本檢查庫存 (庫存足夠的情況下, 會直接扣減Redis中的庫存)
+        Long result = stringRedisTemplate.execute(
+                CHECK_AND_DECREASE_STOCK_SCRIPT,
+                Collections.singletonList(PRODUCT_STOCK),
+                productIdsJson, requestedCountsJson
+        );
+
+        // 檢查庫存
+        boolean success = result != null && result == 1;
 
         List<OrderDetail> temp = new ArrayList<>(productMap.size());
         for (Map.Entry<Integer, Integer> entry : productMap.entrySet()) {
@@ -70,11 +107,11 @@ public class OrderServiceImpl implements OrderService {
             OrderDetail orderDetail = new OrderDetail();
             Product productFromDb = productDao.findById(productId).orElseThrow(() -> new IllegalArgumentException("參數錯誤: 不存在的商品"));
 
-            // 扣減庫存
+            // 訂單成功的狀態下, 扣減庫存
             if (success) {
-                int stock = productFromDb.getStock() - count;
-                productFromDb.setStock(stock);
-                productDao.save(productFromDb);
+                Integer stock = productFromDb.getStock() - count;
+                // 送出一個MQ訊息更新資料庫
+                productStockQueueService.sendStockUpdate(productId, stock);
             }
 
             // 設定數量
