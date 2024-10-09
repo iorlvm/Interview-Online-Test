@@ -3,7 +3,10 @@ package com.apxpert.weien.service.impl;
 import com.apxpert.weien.dao.ProductDao;
 import com.apxpert.weien.entity.Product;
 import com.apxpert.weien.service.ProductService;
+import com.apxpert.weien.service.ProductStockQueueService;
 import jakarta.annotation.PostConstruct;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -12,20 +15,26 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
+import static com.apxpert.weien.utils.Constant.PRODUCT_STOCK;
+
 
 @Service
 public class ProductServiceImpl implements ProductService {
-    private final static String PRODUCT_STOCK = "product:stock";
+    @PersistenceContext
+    private EntityManager entityManager;
 
     @Autowired
-    ProductDao productDao;
+    private ProductDao productDao;
+    @Autowired
+    private ProductStockQueueService productStockQueueService;
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
 
 
     @PostConstruct
     public void loadProductStockToRedis() {
-        // TODO: 將MQ中的隊列在啟動時完整處理並寫入RDB
+        // 將MQ中的隊列在啟動時完整處理並寫入RDB
+        productStockQueueService.processQueueAndLoadToRDB();
 
         // 預先將商品庫存載入redis中
         List<Product> products = productDao.findAll();
@@ -38,11 +47,18 @@ public class ProductServiceImpl implements ProductService {
         }
     }
 
-
     @Override
     public Page<Product> findAll(Integer page, Integer size) {
         Page<Product> products = productDao.findAll(PageRequest.of(page, size));
-        // TODO: 從redis中讀取最新的庫存狀態
+        // 從 Redis 中讀取最新的庫存狀態
+        products.getContent().forEach(product -> {
+            String stock = (String) stringRedisTemplate.opsForHash().get(PRODUCT_STOCK, String.valueOf(product.getId()));
+            if (stock != null) {
+                // 避免查詢時對RDB更新庫存 (其實我不是很確定ORM自動更新的觸發條件, 但斷開比較安全)
+                entityManager.detach(product);
+                product.setStock(Integer.parseInt(stock));
+            }
+        });
         return products;
     }
 
@@ -50,7 +66,12 @@ public class ProductServiceImpl implements ProductService {
     public Product findById(Integer productId) {
         Product product = productDao.findById(productId).orElse(null);
         if (product != null) {
-            // TODO: 從redis中讀取最新的庫存狀態
+            String stock = (String) stringRedisTemplate.opsForHash().get(PRODUCT_STOCK, String.valueOf(product.getId()));
+            if (stock != null) {
+                // 避免查詢時對RDB更新庫存 (其實我不是很確定ORM自動更新的觸發條件, 但斷開比較安全)
+                entityManager.detach(product);
+                product.setStock(Integer.parseInt(stock));
+            }
         }
         return product;
     }
@@ -69,8 +90,12 @@ public class ProductServiceImpl implements ProductService {
         }
         if (product.getStock() != null) {
             if (product.getStock() < 0) throw new IllegalArgumentException("庫存不得為負數");
-            // TODO: 修改為更新redis中的庫存 再將庫存更新放到MQ的尾端, 這個時間點不更新
-            productFromDb.setStock(product.getStock());
+
+            // 更新庫存至 Redis
+            stringRedisTemplate.opsForHash().put(PRODUCT_STOCK, String.valueOf(product.getId()), String.valueOf(product.getStock()));
+
+            // 發送更新庫存到 MQ
+            productStockQueueService.sendStockUpdate(product.getId(), product.getStock());
         }
         if (product.getUnit() != null) {
             productFromDb.setUnit(product.getUnit());
@@ -87,7 +112,9 @@ public class ProductServiceImpl implements ProductService {
     public void deleteById(Integer productId) {
         Product product = productDao.findById(productId).orElseThrow(() -> new IllegalArgumentException("參數錯誤: 不存在的商品"));
         productDao.delete(product);
-        // TODO: 同時刪除redis中的資料
+
+        // 刪除 Redis 中的商品庫存
+        stringRedisTemplate.opsForHash().delete(PRODUCT_STOCK, String.valueOf(productId));
     }
 
     @Override
@@ -114,7 +141,10 @@ public class ProductServiceImpl implements ProductService {
         }
 
         Product saved = productDao.save(product);
-        // TODO: 新增庫存到redis中
+
+        // 新增庫存到 Redis 中
+        stringRedisTemplate.opsForHash().put(PRODUCT_STOCK, String.valueOf(saved.getId()), String.valueOf(saved.getStock()));
+
         return saved;
     }
 }
