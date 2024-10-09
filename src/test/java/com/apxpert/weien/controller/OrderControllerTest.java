@@ -6,17 +6,20 @@ import com.apxpert.weien.entity.Customer;
 import com.apxpert.weien.entity.Product;
 import com.apxpert.weien.service.ProductService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
 
+import static com.apxpert.weien.utils.Constant.PRODUCT_STOCK;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
@@ -33,6 +36,9 @@ public class OrderControllerTest {
     @Autowired
     private ProductService productService;
 
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
+
     private Integer productId;
 
     @BeforeEach
@@ -46,6 +52,11 @@ public class OrderControllerTest {
         productId = productService.appProduct(product).getId();
     }
 
+    @AfterEach
+    public void tearDown() {
+        // 測試結束後清空與商品庫存相關的 Redis 資料, 避免數據殘留
+        stringRedisTemplate.delete(PRODUCT_STOCK);
+    }
 
     @Test
     public void testCreateOrderSuccess() throws Exception {
